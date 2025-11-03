@@ -4,6 +4,7 @@ import '../data/menu_data.dart';
 import 'home_screen.dart';
 import 'orders_screen.dart';
 import 'order_screen_history.dart';
+import 'mypage_screen.dart';
 import '../widgets/custom_bottom_nav_bar.dart';
 
 class DishDetailScreen extends StatefulWidget {
@@ -51,6 +52,8 @@ class _DishDetailScreenState extends State<DishDetailScreen> {
       case 2:
         targetScreen = const OrderHistoryScreen();
         break;
+      case 3:
+        targetScreen = const MyPageScreen();
       default:
         return;
     }

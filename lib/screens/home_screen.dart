@@ -15,21 +15,18 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  // ignore: prefer_final_fields
-  int _selectedBottomIndex = 0; // índice selecionado da barra inferior
+  int _selectedBottomIndex = 0;
   int _selectedCategoryIndex = 0;
   final PageController _pageController = PageController();
   int _currentPage = 0;
 
   static const Color scaffoldBg = Color(0xFFE5E9EC);
 
-  // ✅ Apenas foodsMenu (coffeesMenu removido)
   late final List<String> categories = [
     'すべて',
     ...{...foodsMenu.map((item) => item.subcategory)},
   ].toList();
 
-  // ✅ Filtragem baseada apenas em foodsMenu
   List<MenuItem> get filteredDishes {
     if (_selectedCategoryIndex == 0) {
       return [...foodsMenu];
@@ -178,7 +175,6 @@ class _HomeScreenState extends State<HomeScreen> {
               );
             },
           ),
-          // Botões de navegação entre páginas
           Positioned(
             left: 0,
             top: 0,
@@ -229,12 +225,26 @@ class _HomeScreenState extends State<HomeScreen> {
     return SafeArea(
       child: Column(
         children: [
-          Container(
-            color: scaffoldBg,
-            padding: const EdgeInsets.symmetric(vertical: 12),
-            child: Center(
-              child: Image.asset('assets/images/logo.png', height: 40),
-            ),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final logoHeight = constraints.maxWidth * 0.15; // 15% da largura
+              return Container(
+                color: scaffoldBg,
+                padding: const EdgeInsets.symmetric(
+                  vertical: 12,
+                  horizontal: 16,
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    Image.asset(
+                      'assets/images/logo.png',
+                      height: logoHeight.clamp(50, 80), // min 50, max 80
+                    ),
+                  ],
+                ),
+              );
+            },
           ),
           Expanded(child: _buildHomeTab()),
         ],
