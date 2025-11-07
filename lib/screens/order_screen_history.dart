@@ -6,6 +6,8 @@ import '../widgets/custom_bottom_nav_bar.dart';
 import 'home_screen.dart';
 import 'orders_screen.dart';
 import 'mypage_screen.dart';
+import 'package:http/http.dart' as http;
+import 'package:flutter_stripe/flutter_stripe.dart' as stripe;
 
 class OrderHistoryScreen extends StatefulWidget {
   const OrderHistoryScreen({super.key});
@@ -52,6 +54,9 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
   final TextEditingController _cardExpiryController = TextEditingController();
   final TextEditingController _cardPhoneController = TextEditingController();
   final TextEditingController _addressController = TextEditingController();
+
+  // optional processing flag
+  bool _processingPayment = false;
 
   static const Color green = Color(0xFF307A59);
   static const Color scaffoldBg = Color(0xFFE5E9EC);
@@ -315,6 +320,73 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
     );
 
     if (confirmed != true) return;
+
+    // Antes de finalizar o pedido, processamos o pagamento via Stripe
+    final int amount = getTotal().round(); // JPY inteiro (ex: ¥1000)
+    // amount is in currency's smallest unit. For JPY use integer yen.
+
+    setState(() => _processingPayment = true);
+    try {
+      // 1) Chama backend para criar PaymentIntent
+      // Substitua pela sua URL real de backend
+      final backendUrl = Uri.parse(
+        'https://YOUR_BACKEND/create-payment-intent',
+      );
+
+      final resp = await http.post(
+        backendUrl,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'amount': amount, 'currency': 'jpy'}),
+      );
+
+      if (resp.statusCode != 200) {
+        throw Exception('Backend error: ${resp.statusCode}');
+      }
+
+      final respJson = jsonDecode(resp.body);
+      final clientSecret = respJson['clientSecret'] as String?;
+
+      if (clientSecret == null || clientSecret.isEmpty) {
+        throw Exception('clientSecret ausente no backend response');
+      }
+
+      // 2) Inicializa e apresenta a PaymentSheet
+      await stripe.Stripe.instance.initPaymentSheet(
+        paymentSheetParameters: stripe.SetupPaymentSheetParameters(
+          paymentIntentClientSecret: clientSecret,
+          merchantDisplayName: 'Noushoku EC',
+          // você pode adicionar mais opções aqui (merchantCountryCode, style, etc.)
+        ),
+      );
+
+      await stripe.Stripe.instance.presentPaymentSheet();
+
+      // Se chegou aqui, pagamento concluído com sucesso
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Pagamento concluído com sucesso!')),
+      );
+    } on stripe.StripeException catch (e) {
+      // usuário cancelou ou erro do Stripe
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Pagamento cancelado/erro: ${e.error.localizedMessage ?? e.toString()}',
+          ),
+        ),
+      );
+      setState(() => _processingPayment = false);
+      return; // não prosseguir com finalização do pedido
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erro ao processar pagamento: $e')),
+      );
+      setState(() => _processingPayment = false);
+      return;
+    } finally {
+      setState(() => _processingPayment = false);
+    }
+
+    // se pagamento ok, seguimos para salvar/limpar o pedido (fluxo original)
 
     // gera ID incremental
     _orderCounter++;
@@ -1208,10 +1280,24 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
                   foregroundColor: Colors.white,
                   minimumSize: const Size(double.infinity, 45),
                 ),
-                child: const Text(
-                  '注文を確定する',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                ),
+                child: _processingPayment
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            Colors.white,
+                          ),
+                        ),
+                      )
+                    : const Text(
+                        '注文を確定する',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
               ),
             ),
           ],

@@ -234,14 +234,11 @@ class _HomeScreenState extends State<HomeScreen> {
                   vertical: 12,
                   horizontal: 16,
                 ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    Image.asset(
-                      'assets/images/logo.png',
-                      height: logoHeight.clamp(50, 80), // min 50, max 80
-                    ),
-                  ],
+                child: Center(
+                  child: Image.asset(
+                    'assets/images/logo.png',
+                    height: logoHeight.clamp(50, 80), // min 50, max 80
+                  ),
                 ),
               );
             },
@@ -252,7 +249,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: scaffoldBg,
