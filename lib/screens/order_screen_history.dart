@@ -3,6 +3,8 @@ import 'package:flutter/foundation.dart';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:provider/provider.dart';
+import '../providers/auth_provider.dart';
 import '../data/order_history.dart';
 import '../widgets/custom_bottom_nav_bar.dart';
 import 'home_screen.dart';
@@ -30,10 +32,9 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
       TextEditingController();
   final TextEditingController _recipientController = TextEditingController();
 
-  // login state (local via SharedPreferences)
-  bool isLoggedIn = false;
-  String loggedEmail = '';
-  String loggedAddress = '';
+  // auth state handled by AuthProvider
+  AuthProvider? _authProvider;
+  VoidCallback? _authListener;
 
   // gift / message
   bool isGift = false;
@@ -48,11 +49,55 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
   @override
   void initState() {
     super.initState();
-    _loadLoginState();
+    // initial controllers empty for anonymous flow
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final auth = Provider.of<AuthProvider>(context);
+    if (_authProvider != auth) {
+      // remove previous listener
+      if (_authProvider != null && _authListener != null) {
+        _authProvider!.removeListener(_authListener!);
+      }
+      _authProvider = auth;
+      // create and attach new listener
+      _authListener = () {
+        // when auth changes, update controllers safely and log
+        final user = _authProvider!.user;
+        final selAddr = _authProvider!.selectedAddress;
+        debugPrint(
+          '[OrderHistory] Auth changed. user=${user?.email}, selectedAddress=${selAddr}',
+        );
+        // update controllers only if values differ to avoid cursor jump
+        final newEmail = user?.email ?? '';
+        if (_emailController.text != newEmail) {
+          _emailController.text = newEmail;
+          debugPrint('[OrderHistory] emailController updated -> $newEmail');
+        }
+
+        final newAddress = selAddr != null
+            ? (selAddr['address'] as String? ?? '')
+            : '';
+        if (_addressController.text != newAddress) {
+          _addressController.text = newAddress;
+          debugPrint('[OrderHistory] addressController updated -> $newAddress');
+        }
+        // trigger rebuild to update UI derived from auth
+        if (mounted) setState(() {});
+      };
+      _authProvider!.addListener(_authListener!);
+      // run once to initialize fields
+      _authListener!();
+    }
   }
 
   @override
   void dispose() {
+    if (_authProvider != null && _authListener != null) {
+      _authProvider!.removeListener(_authListener!);
+    }
     _emailController.dispose();
     _addressController.dispose();
     _customMessageController.dispose();
@@ -60,14 +105,7 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
     super.dispose();
   }
 
-  Future<void> _loadLoginState() async {
-    final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      isLoggedIn = prefs.getBool('isLoggedIn') ?? false;
-      loggedEmail = prefs.getString('userEmail') ?? '';
-      loggedAddress = prefs.getString('userAddress') ?? '';
-    });
-  }
+  // older SharedPreferences-based login removed; AuthProvider used
 
   double getTotal() {
     return orderHistory.fold(
@@ -80,7 +118,8 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
 
   bool canCheckout() {
     if (orderHistory.isEmpty) return false;
-    if (isLoggedIn) return orderHistory.isNotEmpty;
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    if (auth.isLoggedIn) return orderHistory.isNotEmpty;
 
     // Para usuários não logados, basta email e endereço preenchidos
     final emailOk = _isNonEmpty(_emailController.text);
@@ -92,12 +131,19 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
   Future<void> _checkoutAll() async {
     if (orderHistory.isEmpty) return;
 
-    final String effectiveEmail = isLoggedIn
-        ? loggedEmail
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final String effectiveEmail = auth.isLoggedIn
+        ? (auth.user?.email ?? _emailController.text.trim())
         : _emailController.text.trim();
-    final String effectiveAddress = isLoggedIn
-        ? loggedAddress
+
+    final String effectiveAddress = auth.isLoggedIn
+        ? (auth.selectedAddress?['address'] as String? ??
+              _addressController.text.trim())
         : _addressController.text.trim();
+
+    debugPrint(
+      '[OrderHistory] checkoutAll -> effectiveEmail=$effectiveEmail, effectiveAddress=$effectiveAddress',
+    );
 
     final confirmed = await showDialog<bool>(
       context: context,
@@ -341,10 +387,6 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
     final receiptOrders = List.from(orderHistory);
     setState(() => orderHistory.clear());
 
-    final prefs = await SharedPreferences.getInstance();
-    final List<String> purchaseHistoryList =
-        prefs.getStringList('purchaseHistory') ?? [];
-
     final Map<String, dynamic> newOrder = {
       'orderId': orderId,
       'items': receiptOrders
@@ -366,8 +408,16 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
       'dateTime': DateTime.now().toIso8601String(),
     };
 
-    purchaseHistoryList.add(jsonEncode(newOrder));
-    await prefs.setStringList('purchaseHistory', purchaseHistoryList);
+    if (auth.isLoggedIn) {
+      // save under user's purchases collection
+      await auth.savePurchase(newOrder);
+    } else {
+      final prefs = await SharedPreferences.getInstance();
+      final List<String> purchaseHistoryList =
+          prefs.getStringList('purchaseHistory') ?? [];
+      purchaseHistoryList.add(jsonEncode(newOrder));
+      await prefs.setStringList('purchaseHistory', purchaseHistoryList);
+    }
 
     setState(() {
       _emailController.clear();
@@ -411,6 +461,7 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final auth = Provider.of<AuthProvider>(context);
     final total = getTotal();
     return Scaffold(
       backgroundColor: scaffoldBg,
@@ -428,21 +479,15 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
             // -----------------------------
             // 1️⃣ BOTÃO LOGIN TOPO
             // -----------------------------
-            if (!isLoggedIn) ...[
+            if (!auth.isLoggedIn) ...[
               Center(
                 child: ElevatedButton(
                   onPressed: () async {
                     // Chama MyPageScreen e aguarda retorno
-                    final result = await Navigator.push<bool>(
+                    await Navigator.push<void>(
                       context,
                       MaterialPageRoute(builder: (_) => const MyPageScreen()),
                     );
-
-                    // Se o login foi bem-sucedido, atualiza o estado
-                    if (result == true) {
-                      await _loadLoginState();
-                      setState(() {});
-                    }
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: green,

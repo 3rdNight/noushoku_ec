@@ -13,13 +13,33 @@
   <meta name="apple-mobile-web-app-title" content="noushoku">
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
 
-  <!-- Favicon -->
   <link rel="icon" type="image/png" href="favicon.png"/>
-
   <title>noushoku</title>
   <link rel="manifest" href="manifest.json">
 </head>
 <body>
+  <!-- Scripts Firebase JS compatíveis (necessários para Firestore Web) -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
+  <script>
+    // Configuração do Firebase
+    const firebaseConfig = {
+      apiKey: "AIzaSyAwKJ-9tPqppU3DoFAu15xB4LuDxgKxdd8",
+      authDomain: "noushoku-ec.firebaseapp.com",
+      projectId: "noushoku-ec",
+      storageBucket: "noushoku-ec.appspot.com",
+      messagingSenderId: "403270423889",
+      appId: "1:403270423889:web:845c97385700d34f3e2f70"
+    };
+    // Inicializa Firebase JS
+    firebase.initializeApp(firebaseConfig);
+    console.log("🔥 Firebase JS inicializado com sucesso!");
+  </script>
+
+  <!-- Bootstrap do Flutter -->
   <script src="flutter_bootstrap.js" async></script>
 </body>
+
 </html>

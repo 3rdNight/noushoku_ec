@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_stripe/flutter_stripe.dart';
+import 'package:provider/provider.dart';
+import 'providers/auth_provider.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 import 'screens/home_screen.dart';
@@ -20,10 +22,15 @@ void main() async {
 
   // Stripe apenas no mobile
   if (!kIsWeb) {
-    Stripe.publishableKey = "xxxxxx";
+    Stripe.publishableKey = "stripe key here";
   }
 
-  runApp(const NoushokuApp());
+  runApp(
+    ChangeNotifierProvider(
+      create: (_) => AuthProvider(),
+      child: const NoushokuApp(),
+    ),
+  );
 }
 
 class NoushokuApp extends StatelessWidget {

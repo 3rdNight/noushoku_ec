@@ -1,9 +1,6 @@
-import 'dart:async';
-
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../providers/auth_provider.dart';
 
 import '../widgets/custom_bottom_nav_bar.dart';
 import 'home_screen.dart';
@@ -36,77 +33,18 @@ class _MyPageScreenState extends State<MyPageScreen> {
   bool showAddressForm = false;
   bool _rememberMe = true; // default true for persistent login in browser
 
-  User? _user;
-  List<Map<String, dynamic>> addresses = [];
+  // user and addresses are provided by AuthProvider
 
-  StreamSubscription<User?>? _authSub;
-  StreamSubscription<QuerySnapshot>? _addressSub;
-
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-  final FirebaseFirestore _db = FirebaseFirestore.instance;
+  // Using AuthProvider for auth and firestore interactions
 
   @override
   void initState() {
     super.initState();
-    _initAuthPersistenceAndListener();
-  }
-
-  Future<void> _initAuthPersistenceAndListener() async {
-    // For web: set default persistence to LOCAL so closing/reloading the browser keeps the session.
-    // We still allow toggling via the "remember me" checkbox at sign-in.
-    try {
-      if (kIsWeb) {
-        // Try to set LOCAL persistence at start; this makes the auth state persistent across tabs/reloads.
-        await _auth.setPersistence(Persistence.LOCAL);
-      }
-    } catch (e) {
-      // setPersistence is web-only; ignore errors for non-web platforms.
-      // Keep silent (but could log to console for debugging).
-    }
-
-    // Listen to auth state changes
-    _authSub = _auth.authStateChanges().listen((user) {
-      _user = user;
-
-      if (_user != null) {
-        // Prefill email for convenience (and for browser autofill consistency)
-        _loginEmailCtrl.text = _user!.email ?? '';
-
-        // start listening to addresses in Firestore
-        _listenAddresses(_user!.uid);
-      } else {
-        _loginEmailCtrl.clear();
-        _loginPassCtrl.clear();
-        addresses = [];
-        _addressSub?.cancel();
-      }
-
-      if (mounted) setState(() {});
-    });
-  }
-
-  void _listenAddresses(String uid) {
-    _addressSub?.cancel();
-
-    _addressSub = _db
-        .collection("users")
-        .doc(uid)
-        .collection("addresses")
-        .orderBy("createdAt")
-        .snapshots()
-        .listen((snapshot) {
-          addresses = snapshot.docs
-              .map((d) => {"id": d.id, "address": d["address"]})
-              .toList();
-          if (mounted) setState(() {});
-        });
+    // initialization handled by AuthProvider
   }
 
   @override
   void dispose() {
-    _authSub?.cancel();
-    _addressSub?.cancel();
-
     _loginEmailCtrl.dispose();
     _loginPassCtrl.dispose();
     _addressController?.dispose();
@@ -126,27 +64,11 @@ class _MyPageScreenState extends State<MyPageScreen> {
     setState(() => _isProcessing = true);
 
     try {
-      // For web, set persistence based on _rememberMe.
-      // Persistence.LOCAL -> persistent across browser restarts.
-      // Persistence.SESSION -> cleared when tab/window is closed.
-      if (kIsWeb) {
-        try {
-          await _auth.setPersistence(
-            _rememberMe ? Persistence.LOCAL : Persistence.SESSION,
-          );
-        } catch (e) {
-          // ignore if not supported
-        }
-      }
-
-      await _auth.signInWithEmailAndPassword(email: email, password: pass);
-
-      // After sign-in, Firebase will manage tokens and refresh automatically.
+      final provider = Provider.of<AuthProvider>(context, listen: false);
+      await provider.signIn(email, pass, remember: _rememberMe);
       _showMsg("ログインしました");
-    } on FirebaseAuthException catch (e) {
-      _showMsg("ログインエラー: ${e.message}");
     } catch (e) {
-      _showMsg("ログイン中にエラーが発生しました");
+      _showMsg("ログイン中にエラーが発生しました: $e");
     } finally {
       if (mounted) setState(() => _isProcessing = false);
     }
@@ -164,32 +86,11 @@ class _MyPageScreenState extends State<MyPageScreen> {
     setState(() => _isProcessing = true);
 
     try {
-      if (kIsWeb) {
-        try {
-          // keep same persistence as signIn (default LOCAL)
-          await _auth.setPersistence(
-            _rememberMe ? Persistence.LOCAL : Persistence.SESSION,
-          );
-        } catch (e) {}
-      }
-
-      final cred = await _auth.createUserWithEmailAndPassword(
-        email: email,
-        password: pass,
-      );
-
-      final uid = cred.user!.uid;
-
-      await _db.collection("users").doc(uid).set({
-        "email": email,
-        "createdAt": FieldValue.serverTimestamp(),
-      });
-
+      final provider = Provider.of<AuthProvider>(context, listen: false);
+      await provider.createAccount(email, pass);
       _showMsg("アカウントを作成しました");
-    } on FirebaseAuthException catch (e) {
-      _showMsg("登録エラー: ${e.message}");
     } catch (e) {
-      _showMsg("登録エラーが発生しました");
+      _showMsg("登録エラーが発生しました: $e");
     } finally {
       if (mounted) setState(() => _isProcessing = false);
     }
@@ -197,7 +98,8 @@ class _MyPageScreenState extends State<MyPageScreen> {
 
   Future<void> _logout() async {
     try {
-      await _auth.signOut();
+      final provider = Provider.of<AuthProvider>(context, listen: false);
+      await provider.signOut();
       _showMsg("ログアウトしました");
     } catch (e) {
       _showMsg("ログアウトエラー: ${e.toString()}");
@@ -226,21 +128,22 @@ class _MyPageScreenState extends State<MyPageScreen> {
 
     final value = _addressController!.text.trim();
     if (value.isEmpty) return;
+    try {
+      final provider = Provider.of(context, listen: false);
+      if (!provider.isLoggedIn) {
+        _showMsg("ログインしてください");
+        return;
+      }
 
-    if (_user == null) {
-      _showMsg("ログインしてください");
+      if (editingAddressId == null) {
+        await provider.addAddress(value);
+      } else {
+        await provider.updateAddress(editingAddressId!, value);
+      }
+    } catch (e) {
+      debugPrint('[MyPage] _saveAddress FAILED: $e');
+      _showMsg('住所の保存中にエラーが発生しました: $e');
       return;
-    }
-
-    final ref = _db.collection("users").doc(_user!.uid).collection("addresses");
-
-    if (editingAddressId == null) {
-      await ref.add({
-        "address": value,
-        "createdAt": FieldValue.serverTimestamp(),
-      });
-    } else {
-      await ref.doc(editingAddressId).update({"address": value});
     }
 
     _closeAddressForm();
@@ -248,19 +151,17 @@ class _MyPageScreenState extends State<MyPageScreen> {
   }
 
   Future<void> _removeAddress(String id) async {
-    if (_user == null) {
-      _showMsg("ログインしてください");
-      return;
+    try {
+      final provider = Provider.of(context, listen: false);
+      if (!provider.isLoggedIn) {
+        _showMsg("ログインしてください");
+        return;
+      }
+      await provider.removeAddress(id);
+      _showMsg("削除しました");
+    } catch (e) {
+      _showMsg('住所の削除中にエラーが発生しました');
     }
-
-    await _db
-        .collection("users")
-        .doc(_user!.uid)
-        .collection("addresses")
-        .doc(id)
-        .delete();
-
-    _showMsg("削除しました");
   }
 
   void _showMsg(String txt) {
@@ -283,7 +184,8 @@ class _MyPageScreenState extends State<MyPageScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isLogged = _user != null;
+    final auth = Provider.of<AuthProvider>(context);
+    final isLogged = auth.isLoggedIn;
 
     return Scaffold(
       backgroundColor: scaffoldBg,
@@ -401,6 +303,7 @@ class _MyPageScreenState extends State<MyPageScreen> {
   }
 
   Widget _buildLoggedInUI() {
+    final auth = Provider.of<AuthProvider>(context);
     return Column(
       children: [
         const SizedBox(height: 8),
@@ -455,7 +358,7 @@ class _MyPageScreenState extends State<MyPageScreen> {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        _user?.email ?? "",
+                        auth.user?.email ?? "",
                         style: const TextStyle(color: textColor),
                       ),
                     ],
@@ -481,35 +384,39 @@ class _MyPageScreenState extends State<MyPageScreen> {
                       ),
                       const SizedBox(height: 8),
 
-                      if (addresses.isEmpty && !showAddressForm)
+                      if (auth.addresses.isEmpty && !showAddressForm)
                         const Text(
                           "住所は登録されていません",
                           style: TextStyle(color: textColor),
                         ),
 
-                      ...addresses.map((addr) {
-                        return ListTile(
-                          contentPadding: EdgeInsets.zero,
+                      ...auth.addresses.map((addr) {
+                        final id = addr['id'] as String? ?? '';
+                        final addressText = addr['address'] as String? ?? '';
+                        return RadioListTile<String>(
+                          value: id,
+                          groupValue: auth.selectedAddressId,
+                          onChanged: (val) {
+                            if (val != null) auth.selectAddress(val);
+                          },
                           title: Text(
-                            addr["address"],
+                            addressText,
                             style: const TextStyle(color: textColor),
                           ),
-                          trailing: Row(
+                          secondary: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               IconButton(
                                 icon: const Icon(Icons.edit, color: green),
-                                onPressed: () => _openAddressForm(
-                                  addr["address"],
-                                  addr["id"],
-                                ),
+                                onPressed: () =>
+                                    _openAddressForm(addressText, id),
                               ),
                               IconButton(
                                 icon: const Icon(
                                   Icons.delete,
                                   color: Colors.red,
                                 ),
-                                onPressed: () => _removeAddress(addr["id"]),
+                                onPressed: () => _removeAddress(id),
                               ),
                             ],
                           ),

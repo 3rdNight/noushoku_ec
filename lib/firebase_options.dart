@@ -45,15 +45,15 @@ class DefaultFirebaseOptions {
     messagingSenderId: '403270423889',
     projectId: 'noushoku-ec',
     authDomain: 'noushoku-ec.firebaseapp.com',
-    storageBucket: 'noushoku-ec.firebasestorage.app',
+    storageBucket: 'noushoku-ec.appspot.com',
   );
 
   static const FirebaseOptions windows = FirebaseOptions(
     apiKey: 'AIzaSyAwKJ-9tPqppU3DoFAu15xB4LuDxgKxdd8',
-    appId: '1:403270423889:web:95059b73633789c63e2f70',
+    appId: '1:403270423889:windows:95059b73633789c63e2f70',
     messagingSenderId: '403270423889',
     projectId: 'noushoku-ec',
     authDomain: 'noushoku-ec.firebaseapp.com',
-    storageBucket: 'noushoku-ec.firebasestorage.app',
+    storageBucket: 'noushoku-ec.appspot.com',
   );
 }
