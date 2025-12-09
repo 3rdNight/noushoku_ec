@@ -1,38 +1,67 @@
 import * as functions from "firebase-functions";
-import * as admin from "firebase-admin";
+import express from "express";
 import Stripe from "stripe";
+import * as admin from "firebase-admin";
+import cors from "cors";
 
+// Inicializa o Firebase Admin
 admin.initializeApp();
+const app = express();
 
-// ⚙️ Substitua "sk_test_ABC123..." pela sua chave secreta do Stripe (começa com "sk_test_...")
+// 🔹 Configura CORS corretamente (aceita tanto localhost quanto o domínio do site)
+app.use(
+  cors({
+    origin: true,
+    methods: ["GET", "POST", "OPTIONS"],
+    allowedHeaders: ["Content-Type"],
+  })
+);
+
+// 🔹 Lida com preflight OPTIONS requests
+app.options("/create-checkout-session", cors());
+
+// Body parser
+app.use(express.json());
+
+// Inicializa Stripe
 const stripe = new Stripe(
   "sk_test_51SPcfXCTxikVLYqMseAD91TnbMGBpw92ixiEfIxNyf3OmTkX8zflDGSeHfEqMaGGD1ly1LsUEMjZC0K8jH2iUxc800pwJ4y7ec",
   { apiVersion: "2025-10-29.clover" }
 );
 
-export const createPaymentIntent = functions.https.onRequest(
-  async (req, res) => {
-    try {
-      const { amount, currency } = req.body;
+// 🔹 Endpoint principal
+app.post("/create-checkout-session", async (req, res) => {
+  try {
+    const { amount, currency, email } = req.body;
 
-      if (!amount || !currency) {
-        res.status(400).send({ error: "amount e currency são obrigatórios" });
-        return;
-      }
-
-      // Cria PaymentIntent no Stripe
-      const paymentIntent = await stripe.paymentIntents.create({
-        amount,
-        currency,
-        automatic_payment_methods: { enabled: true },
-      });
-
-      res.status(200).send({ clientSecret: paymentIntent.client_secret });
-    } catch (error: unknown) {
-      console.error("Erro ao criar PaymentIntent:", error);
-      const message =
-        error instanceof Error ? error.message : "Erro desconhecido";
-      res.status(500).send({ error: message });
+    if (!amount || !currency) {
+      return res.status(400).json({ error: "amount and currency are required" });
     }
+
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ["card"],
+      mode: "payment",
+      line_items: [
+        {
+          price_data: {
+            currency,
+            product_data: { name: "農食のオーダー" },
+            unit_amount: amount,
+          },
+          quantity: 1,
+        },
+      ],
+      customer_email: email,
+      success_url: "https://noushoku-ec.web.app/success",
+      cancel_url: "https://noushoku-ec.web.app/cancel",
+    });
+
+    return res.status(200).json({ url: session.url });
+  } catch (err: any) {
+    console.error("Error in createCheckoutSession:", err);
+    return res.status(500).json({ error: err.message || "Internal Error" });
   }
-);
+});
+
+// 🔹 Exporta função HTTP (1ª geração)
+export const createCheckoutSession = functions.https.onRequest(app);

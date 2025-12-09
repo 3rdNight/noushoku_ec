@@ -77,6 +77,10 @@ class _OrdersScreenState extends State<OrdersScreen> {
       addOrderToHistory(cart, orderId: orderId);
       cart.clear();
       setState(() {});
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const OrderHistoryScreen()),
+      );
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(

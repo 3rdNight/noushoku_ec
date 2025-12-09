@@ -103,110 +103,140 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  // --------------------------------------------------------
+  //  ⭐ Grid responsivo + imagens proporcionais (fixado aqui)
+  // --------------------------------------------------------
   Widget _buildDishGrid() {
     const int itemsPerPage = 4;
     final int pageCount = (filteredDishes.length / itemsPerPage).ceil();
 
     return Expanded(
-      child: Stack(
-        children: [
-          PageView.builder(
-            itemCount: pageCount,
-            controller: _pageController,
-            physics: const NeverScrollableScrollPhysics(),
-            onPageChanged: (index) => setState(() => _currentPage = index),
-            itemBuilder: (context, pageIndex) {
-              final startIndex = pageIndex * itemsPerPage;
-              final endIndex =
-                  (startIndex + itemsPerPage > filteredDishes.length)
-                  ? filteredDishes.length
-                  : startIndex + itemsPerPage;
-              final pageItems = filteredDishes.sublist(startIndex, endIndex);
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          // Número de colunas proporcional ao tamanho da tela
+          int crossAxisCount = 2;
+          if (constraints.maxWidth > 900) {
+            crossAxisCount = 4;
+          } else if (constraints.maxWidth > 600) {
+            crossAxisCount = 3;
+          }
 
-              return Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: GridView.builder(
-                  physics: const NeverScrollableScrollPhysics(),
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
-                    mainAxisSpacing: 12,
-                    crossAxisSpacing: 12,
-                    childAspectRatio: 0.8,
-                  ),
-                  itemCount: pageItems.length,
-                  itemBuilder: (context, index) {
-                    final dish = pageItems[index];
-                    return GestureDetector(
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => DishDetailScreen(dish: dish),
+          // Forçar SEMPRE 2 linhas:
+          // a altura de cada card ficará proporcional
+          double itemWidth = constraints.maxWidth / crossAxisCount;
+          double itemHeight = itemWidth * 1.35; // aumenta a altura
+          double childAspectRatio = itemWidth / itemHeight;
+
+          return Stack(
+            children: [
+              PageView.builder(
+                itemCount: pageCount,
+                controller: _pageController,
+                physics: const NeverScrollableScrollPhysics(),
+                onPageChanged: (index) => setState(() => _currentPage = index),
+                itemBuilder: (context, pageIndex) {
+                  final startIndex = pageIndex * itemsPerPage;
+                  final endIndex =
+                      (startIndex + itemsPerPage > filteredDishes.length)
+                      ? filteredDishes.length
+                      : startIndex + itemsPerPage;
+                  final pageItems = filteredDishes.sublist(
+                    startIndex,
+                    endIndex,
+                  );
+
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: GridView.builder(
+                      physics: const NeverScrollableScrollPhysics(),
+                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: crossAxisCount,
+                        mainAxisSpacing: 12,
+                        crossAxisSpacing: 12,
+                        childAspectRatio: childAspectRatio,
+                      ),
+                      itemCount: pageItems.length,
+                      itemBuilder: (context, index) {
+                        final dish = pageItems[index];
+                        return GestureDetector(
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => DishDetailScreen(dish: dish),
+                              ),
+                            );
+                          },
+                          child: Column(
+                            children: [
+                              AspectRatio(
+                                aspectRatio: 1.2,
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(12),
+                                    image: DecorationImage(
+                                      image: AssetImage(dish.imagePath),
+                                      fit: BoxFit.cover,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                dish.labelKey,
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  color: Color(0xFF1A4D2E),
+                                ),
+                              ),
+                            ],
                           ),
                         );
                       },
-                      child: Column(
-                        children: [
-                          Expanded(
-                            child: Container(
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(12),
-                                image: DecorationImage(
-                                  image: AssetImage(dish.imagePath),
-                                  fit: BoxFit.cover,
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            dish.labelKey,
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              fontSize: 14,
-                              color: Color(0xFF1A4D2E),
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
-              );
-            },
-          ),
-          Positioned(
-            left: 0,
-            top: 0,
-            bottom: 0,
-            child: IconButton(
-              icon: const Icon(Icons.arrow_back_ios, color: Color(0xFF1A4D2E)),
-              onPressed: _currentPage > 0
-                  ? () => _pageController.previousPage(
-                      duration: const Duration(milliseconds: 300),
-                      curve: Curves.easeInOut,
-                    )
-                  : null,
-            ),
-          ),
-          Positioned(
-            right: 0,
-            top: 0,
-            bottom: 0,
-            child: IconButton(
-              icon: const Icon(
-                Icons.arrow_forward_ios,
-                color: Color(0xFF1A4D2E),
+                    ),
+                  );
+                },
               ),
-              onPressed: _currentPage < pageCount - 1
-                  ? () => _pageController.nextPage(
-                      duration: const Duration(milliseconds: 300),
-                      curve: Curves.easeInOut,
-                    )
-                  : null,
-            ),
-          ),
-        ],
+
+              // Botões de navegação
+              Positioned(
+                left: 0,
+                top: 0,
+                bottom: 0,
+                child: IconButton(
+                  icon: const Icon(
+                    Icons.arrow_back_ios,
+                    color: Color(0xFF1A4D2E),
+                  ),
+                  onPressed: _currentPage > 0
+                      ? () => _pageController.previousPage(
+                          duration: const Duration(milliseconds: 300),
+                          curve: Curves.easeInOut,
+                        )
+                      : null,
+                ),
+              ),
+              Positioned(
+                right: 0,
+                top: 0,
+                bottom: 0,
+                child: IconButton(
+                  icon: const Icon(
+                    Icons.arrow_forward_ios,
+                    color: Color(0xFF1A4D2E),
+                  ),
+                  onPressed: _currentPage < pageCount - 1
+                      ? () => _pageController.nextPage(
+                          duration: const Duration(milliseconds: 300),
+                          curve: Curves.easeInOut,
+                        )
+                      : null,
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -227,7 +257,7 @@ class _HomeScreenState extends State<HomeScreen> {
         children: [
           LayoutBuilder(
             builder: (context, constraints) {
-              final logoHeight = constraints.maxWidth * 0.15; // 15% da largura
+              final logoHeight = constraints.maxWidth * 0.15;
               return Container(
                 color: scaffoldBg,
                 padding: const EdgeInsets.symmetric(
@@ -237,7 +267,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: Center(
                   child: Image.asset(
                     'assets/images/logo.png',
-                    height: logoHeight.clamp(50, 80), // min 50, max 80
+                    height: logoHeight.clamp(50, 80),
                   ),
                 ),
               );
@@ -249,6 +279,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: scaffoldBg,

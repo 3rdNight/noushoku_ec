@@ -28,5 +28,33 @@
         "npm --prefix \"$RESOURCE_DIR\" run build"
       ]
     }
-  ]
+  ],
+  "flutter": {
+    "platforms": {
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "noushoku-ec",
+          "configurations": {
+            "web": "1:403270423889:web:845c97385700d34f3e2f70",
+            "windows": "1:403270423889:web:95059b73633789c63e2f70"
+          }
+        }
+      }
+    }
+  },
+  "emulators": {
+    "functions": {
+      "port": 8080
+    },
+    "firestore": {
+      "port": 8080
+    },
+    "hosting": {
+      "port": 5000
+    },
+    "ui": {
+      "enabled": true
+    },
+    "singleProjectMode": true
+  }
 }

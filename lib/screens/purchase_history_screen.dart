@@ -211,16 +211,6 @@ class _PurchaseHistoryScreenState extends State<PurchaseHistoryScreen> {
                       ),
                       const SizedBox(height: 8),
 
-                      // Dados do cartão
-                      Text(
-                        'カード名義人: ${order['cardName'] ?? order['card']?['name'] ?? ''}',
-                        style: const TextStyle(color: green),
-                      ),
-                      Text(
-                        'カード番号: **** **** **** ${((order['cardNumber'] ?? order['card']?['number'] ?? '') as String).length >= 4 ? (order['cardNumber'] ?? order['card']?['number'] ?? '').substring(((order['cardNumber'] ?? order['card']?['number'] ?? '').length - 4)) : ''}',
-                        style: const TextStyle(color: green),
-                      ),
-
                       // Data/hora da compra formatada
                       if (order['dateTime'] != null &&
                           (order['dateTime'] as String).isNotEmpty)
@@ -234,6 +224,16 @@ class _PurchaseHistoryScreenState extends State<PurchaseHistoryScreen> {
                         '配送先住所: ${order['address']}',
                         style: const TextStyle(color: green),
                       ),
+
+                      // -------------------------
+                      // ✅ NOME DO DESTINATÁRIO
+                      // -------------------------
+                      if (order['recipientName'] != null &&
+                          order['recipientName'].toString().isNotEmpty)
+                        Text(
+                          '宛先名: ${order['recipientName']}',
+                          style: const TextStyle(color: green),
+                        ),
 
                       // Mensagem de presente
                       if (order['giftMessage'] != null &&
@@ -270,13 +270,13 @@ class _PurchaseHistoryScreenState extends State<PurchaseHistoryScreen> {
                                   style: TextStyle(
                                     color: green,
                                     fontWeight: FontWeight.bold,
-                                    fontSize: 16, // tamanho reduzido
+                                    fontSize: 16,
                                   ),
                                 ),
                                 actions: [
                                   TextButton(
                                     onPressed: () {
-                                      Navigator.of(ctx).pop(); // Fecha o dialog
+                                      Navigator.of(ctx).pop();
                                     },
                                     child: const Text(
                                       'いいえ',
@@ -285,8 +285,8 @@ class _PurchaseHistoryScreenState extends State<PurchaseHistoryScreen> {
                                   ),
                                   TextButton(
                                     onPressed: () {
-                                      _deletePurchase(index); // Deleta o pedido
-                                      Navigator.of(ctx).pop(); // Fecha o dialog
+                                      _deletePurchase(index);
+                                      Navigator.of(ctx).pop();
                                     },
                                     child: const Text(
                                       'はい',

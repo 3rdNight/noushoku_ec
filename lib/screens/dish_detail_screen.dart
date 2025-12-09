@@ -69,110 +69,126 @@ class _DishDetailScreenState extends State<DishDetailScreen> {
   Widget build(BuildContext context) {
     final dish = widget.dish;
 
+    final screenHeight = MediaQuery.of(context).size.height;
+    final isMobile = MediaQuery.of(context).size.width < 600;
+
+    final imageHeight = isMobile
+        ? screenHeight *
+              0.40 // mobile
+        : screenHeight * 0.25; // desktop
+
     return Scaffold(
-      backgroundColor: const Color(0xFFE5E9EC), // ✅ fundo atualizado
+      backgroundColor: const Color(0xFFE5E9EC),
       appBar: AppBar(
         title: Text(
           dish.labelKey,
           style: const TextStyle(color: Color(0xFF1A4D2E)),
         ),
-        backgroundColor: const Color(0xFFE5E9EC), // ✅ fundo atualizado
+        backgroundColor: const Color(0xFFE5E9EC),
         elevation: 0,
         iconTheme: const IconThemeData(color: Color(0xFF1A4D2E)),
         centerTitle: true,
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Container(
-              height: 250,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(12),
-                image: DecorationImage(
-                  image: AssetImage(dish.imagePath),
-                  fit: BoxFit.cover,
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              dish.labelKey,
-              style: const TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF1A4D2E),
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              formatPrice(dish.price),
-              style: const TextStyle(fontSize: 18, color: Color(0xFF1A4D2E)),
-            ),
-            const SizedBox(height: 12),
-            Expanded(
-              child: SingleChildScrollView(
-                child: Text(
-                  dish.descriptionKey,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    color: Color(0xFF1A4D2E),
-                  ),
-                  textAlign: TextAlign.justify,
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                IconButton(
-                  onPressed: decrement,
-                  icon: const Icon(
-                    Icons.remove_circle_outline,
-                    color: Color(0xFF1A4D2E),
-                  ),
-                ),
-                Text(
-                  quantity.toString(),
-                  style: const TextStyle(
-                    fontSize: 20,
-                    color: Color(0xFF1A4D2E),
-                  ),
-                ),
-                IconButton(
-                  onPressed: increment,
-                  icon: const Icon(
-                    Icons.add_circle_outline,
-                    color: Color(0xFF1A4D2E),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: _addToCart,
-                icon: const Icon(Icons.add_shopping_cart, color: Colors.white),
-                label: const Text(
-                  'カートに入れる',
-                  style: TextStyle(fontSize: 18, color: Colors.white),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF307A59),
-                  minimumSize: const Size(double.infinity, 50),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
+
+      body: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              // 🔥 imagem corrigida — NÃO estica, NÃO corta, NÃO exagera no tamanho
+              SizedBox(
+                height: imageHeight,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Image.asset(
+                    dish.imagePath,
+                    fit: BoxFit.contain, // a correção principal
                   ),
                 ),
               ),
-            ),
-          ],
+
+              const SizedBox(height: 16),
+
+              Text(
+                dish.labelKey,
+                style: const TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF1A4D2E),
+                ),
+                textAlign: TextAlign.center,
+              ),
+
+              const SizedBox(height: 8),
+
+              Text(
+                formatPrice(dish.price),
+                style: const TextStyle(fontSize: 18, color: Color(0xFF1A4D2E)),
+              ),
+
+              const SizedBox(height: 16),
+
+              Text(
+                dish.descriptionKey,
+                style: const TextStyle(fontSize: 16, color: Color(0xFF1A4D2E)),
+                textAlign: TextAlign.justify,
+              ),
+
+              const SizedBox(height: 20),
+
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  IconButton(
+                    onPressed: decrement,
+                    icon: const Icon(
+                      Icons.remove_circle_outline,
+                      color: Color(0xFF1A4D2E),
+                    ),
+                  ),
+                  Text(
+                    quantity.toString(),
+                    style: const TextStyle(
+                      fontSize: 20,
+                      color: Color(0xFF1A4D2E),
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: increment,
+                    icon: const Icon(
+                      Icons.add_circle_outline,
+                      color: Color(0xFF1A4D2E),
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 20),
+
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: _addToCart,
+                  icon: const Icon(Icons.add_shopping_cart),
+                  label: const Text('カートに入れる', style: TextStyle(fontSize: 18)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF307A59),
+                    foregroundColor: Colors.white,
+                    minimumSize: const Size(double.infinity, 50),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 16),
+            ],
+          ),
         ),
       ),
+
       bottomNavigationBar: CustomBottomNavBar(
         currentIndex: _selectedBottomIndex,
         onTap: _onBottomNavTap,

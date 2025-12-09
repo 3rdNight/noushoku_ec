@@ -25,7 +25,7 @@ class CustomBottomNavBar extends StatelessWidget {
       items: [
         _buildNavItem(0, Icons.home, 'ホーム', scaffoldBg), // Home
         _buildNavItem(1, Icons.shopping_cart, 'カート', scaffoldBg), // Carrinho
-        _buildNavItem(2, Icons.payment, 'チェックアウト', scaffoldBg), // Checkout
+        _buildNavItem(2, Icons.payment, '会計', scaffoldBg), // Checkout
         _buildNavItem(3, Icons.person, 'マイページ', scaffoldBg), // MyPage
       ],
     );

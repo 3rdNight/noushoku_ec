@@ -1,23 +1,44 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_stripe/flutter_stripe.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
 import 'screens/home_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 🔹 Configure aqui a publishable key do Stripe (modo teste)
-  Stripe.publishableKey =
-      "pk_test_51SPcftFplV8Hq8XnCGDfv6z4l1HaEzv9TkQGxXOdeizqZvFM6JzrRktoLKLlMU8usQx4PudTiUrqaVZGVz4mlupp0042CgVwjf"; // substitua pela sua chave
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+    debugPrint("🔥 Firebase INICIALIZADO com sucesso!");
+  } catch (e) {
+    debugPrint("❌ Firebase NÃO inicializou: $e");
+    rethrow; // <-- para o app, pra poder ver que deu erro
+  }
 
-  runApp(NoushokuApp());
+  // Stripe apenas no mobile
+  if (!kIsWeb) {
+    Stripe.publishableKey = "xxxxxx";
+  }
+
+  runApp(const NoushokuApp());
 }
 
 class NoushokuApp extends StatelessWidget {
+  const NoushokuApp({super.key});
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Noushoku_EC',
-      theme: ThemeData(primarySwatch: Colors.deepOrange),
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+        colorScheme: ColorScheme.fromSwatch(
+          primarySwatch: Colors.deepOrange,
+        ).copyWith(secondary: Colors.deepOrangeAccent),
+      ),
       home: const HomeScreen(),
     );
   }
