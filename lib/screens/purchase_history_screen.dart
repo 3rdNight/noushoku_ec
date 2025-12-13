@@ -1,22 +1,23 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:provider/provider.dart';
-import '../providers/auth_provider.dart';
+import '../providers/auth_notifier.dart';
 import '../widgets/custom_bottom_nav_bar.dart';
 import 'home_screen.dart';
 import 'orders_screen.dart';
 import 'order_screen_history.dart';
 import 'mypage_screen.dart';
 
-class PurchaseHistoryScreen extends StatefulWidget {
+class PurchaseHistoryScreen extends ConsumerStatefulWidget {
   const PurchaseHistoryScreen({super.key});
 
   @override
-  State<PurchaseHistoryScreen> createState() => _PurchaseHistoryScreenState();
+  ConsumerState<PurchaseHistoryScreen> createState() =>
+      _PurchaseHistoryScreenState();
 }
 
-class _PurchaseHistoryScreenState extends State<PurchaseHistoryScreen> {
+class _PurchaseHistoryScreenState extends ConsumerState<PurchaseHistoryScreen> {
   static const Color green = Color(0xFF307A59);
   static const Color scaffoldBg = Color(0xFFE5E9EC);
   int _selectedBottomIndex = 3;
@@ -40,11 +41,12 @@ class _PurchaseHistoryScreenState extends State<PurchaseHistoryScreen> {
   }
 
   Future<void> _deletePurchase(int index) async {
-    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final auth = ref.read(authNotifierProvider);
     if (auth.isLoggedIn) {
       final id = purchaseHistory[index]['id'];
-      if (id != null) await auth.removePurchase(id);
-      // provider stream will refresh list; no local state change required
+      if (id != null) {
+        await ref.read(authNotifierProvider.notifier).removePurchase(id);
+      }
     } else {
       final prefs = await SharedPreferences.getInstance();
       purchaseHistory.removeAt(index);
@@ -63,9 +65,6 @@ class _PurchaseHistoryScreenState extends State<PurchaseHistoryScreen> {
     bool remote, {
     int? index,
   }) {
-    final Color green = const Color(0xFF307A59);
-    final Color scaffoldBg = const Color(0xFFE5E9EC);
-
     return Card(
       color: scaffoldBg.withOpacity(0.95),
       margin: const EdgeInsets.only(bottom: 16),
@@ -81,7 +80,7 @@ class _PurchaseHistoryScreenState extends State<PurchaseHistoryScreen> {
                 style: const TextStyle(
                   fontWeight: FontWeight.bold,
                   fontSize: 16,
-                  color: Color(0xFF307A59),
+                  color: green,
                 ),
               ),
             ),
@@ -99,18 +98,18 @@ class _PurchaseHistoryScreenState extends State<PurchaseHistoryScreen> {
                       item['label'],
                       style: const TextStyle(
                         fontWeight: FontWeight.bold,
-                        color: Color(0xFF307A59),
+                        color: green,
                       ),
                     ),
                     Text(
                       '¥${(item['price'] as num).toDouble().toStringAsFixed(0)} × ${item['quantity']}',
-                      style: const TextStyle(color: Color(0xFF307A59)),
+                      style: const TextStyle(color: green),
                     ),
                     Text(
                       '小計: ¥${subtotal.toStringAsFixed(0)}',
                       style: const TextStyle(
                         fontWeight: FontWeight.bold,
-                        color: Color(0xFF307A59),
+                        color: green,
                       ),
                     ),
                     const Divider(),
@@ -125,7 +124,7 @@ class _PurchaseHistoryScreenState extends State<PurchaseHistoryScreen> {
                 style: const TextStyle(
                   fontWeight: FontWeight.bold,
                   fontSize: 16,
-                  color: Color(0xFF307A59),
+                  color: green,
                 ),
               ),
             ),
@@ -134,17 +133,17 @@ class _PurchaseHistoryScreenState extends State<PurchaseHistoryScreen> {
                 order['dateTime'].toString().isNotEmpty)
               Text(
                 '購入日時: ${order['dateTime'].toString()}',
-                style: const TextStyle(color: Color(0xFF307A59)),
+                style: const TextStyle(color: green),
               ),
             Text(
               '配送先住所: ${order['address']}',
-              style: const TextStyle(color: Color(0xFF307A59)),
+              style: const TextStyle(color: green),
             ),
             if (order['recipientName'] != null &&
                 order['recipientName'].toString().isNotEmpty)
               Text(
                 '宛先名: ${order['recipientName']}',
-                style: const TextStyle(color: Color(0xFF307A59)),
+                style: const TextStyle(color: green),
               ),
             if (order['giftMessage'] != null &&
                 order['giftMessage'].toString().isNotEmpty)
@@ -156,12 +155,12 @@ class _PurchaseHistoryScreenState extends State<PurchaseHistoryScreen> {
                     'ギフトメッセージ:',
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
-                      color: Color(0xFF307A59),
+                      color: green,
                     ),
                   ),
                   Text(
                     order['giftMessage'],
-                    style: const TextStyle(color: Color(0xFF307A59)),
+                    style: const TextStyle(color: green),
                   ),
                 ],
               ),
@@ -170,13 +169,13 @@ class _PurchaseHistoryScreenState extends State<PurchaseHistoryScreen> {
               width: double.infinity,
               child: OutlinedButton(
                 onPressed: () async {
-                  final auth = Provider.of<AuthProvider>(
-                    context,
-                    listen: false,
-                  );
                   if (remote) {
                     final id = order['id'];
-                    if (id != null) await auth.removePurchase(id);
+                    if (id != null) {
+                      await ref
+                          .read(authNotifierProvider.notifier)
+                          .removePurchase(id);
+                    }
                   } else {
                     if (index != null) await _deletePurchase(index);
                   }
@@ -221,7 +220,8 @@ class _PurchaseHistoryScreenState extends State<PurchaseHistoryScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final auth = Provider.of<AuthProvider>(context);
+    final auth = ref.watch(authNotifierProvider);
+
     return Scaffold(
       backgroundColor: scaffoldBg,
       appBar: AppBar(
@@ -234,7 +234,7 @@ class _PurchaseHistoryScreenState extends State<PurchaseHistoryScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          // Botões abaixo do título
+          // Navigation buttons
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 8),
             child: Row(
@@ -268,7 +268,7 @@ class _PurchaseHistoryScreenState extends State<PurchaseHistoryScreen> {
           ),
           const SizedBox(height: 16),
 
-          // Corpo: lista de pedidos
+          // Purchase list
           if (auth.isLoggedIn)
             ...auth.purchases.map((order) {
               final items = (order['items'] as List).cast<dynamic>();

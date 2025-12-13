@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import '../providers/auth_provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../providers/auth_notifier.dart';
 
 import '../widgets/custom_bottom_nav_bar.dart';
 import 'home_screen.dart';
@@ -31,16 +31,11 @@ class _MyPageScreenState extends State<MyPageScreen> {
   // State
   bool _isProcessing = false;
   bool showAddressForm = false;
-  bool _rememberMe = true; // default true for persistent login in browser
-
-  // user and addresses are provided by AuthProvider
-
-  // Using AuthProvider for auth and firestore interactions
+  bool _rememberMe = true;
 
   @override
   void initState() {
     super.initState();
-    // initialization handled by AuthProvider
   }
 
   @override
@@ -48,11 +43,10 @@ class _MyPageScreenState extends State<MyPageScreen> {
     _loginEmailCtrl.dispose();
     _loginPassCtrl.dispose();
     _addressController?.dispose();
-
     super.dispose();
   }
 
-  Future<void> _signIn() async {
+  Future<void> _signIn(WidgetRef ref) async {
     final email = _loginEmailCtrl.text.trim();
     final pass = _loginPassCtrl.text.trim();
 
@@ -64,8 +58,8 @@ class _MyPageScreenState extends State<MyPageScreen> {
     setState(() => _isProcessing = true);
 
     try {
-      final provider = Provider.of<AuthProvider>(context, listen: false);
-      await provider.signIn(email, pass, remember: _rememberMe);
+      final notifier = ref.read(authNotifierProvider.notifier);
+      await notifier.signIn(email, pass, remember: _rememberMe);
       _showMsg("ログインしました");
     } catch (e) {
       _showMsg("ログイン中にエラーが発生しました: $e");
@@ -74,7 +68,7 @@ class _MyPageScreenState extends State<MyPageScreen> {
     }
   }
 
-  Future<void> _createAccount() async {
+  Future<void> _createAccount(WidgetRef ref) async {
     final email = _loginEmailCtrl.text.trim();
     final pass = _loginPassCtrl.text.trim();
 
@@ -86,8 +80,8 @@ class _MyPageScreenState extends State<MyPageScreen> {
     setState(() => _isProcessing = true);
 
     try {
-      final provider = Provider.of<AuthProvider>(context, listen: false);
-      await provider.createAccount(email, pass);
+      final notifier = ref.read(authNotifierProvider.notifier);
+      await notifier.createAccount(email, pass);
       _showMsg("アカウントを作成しました");
     } catch (e) {
       _showMsg("登録エラーが発生しました: $e");
@@ -96,10 +90,10 @@ class _MyPageScreenState extends State<MyPageScreen> {
     }
   }
 
-  Future<void> _logout() async {
+  Future<void> _logout(WidgetRef ref) async {
     try {
-      final provider = Provider.of<AuthProvider>(context, listen: false);
-      await provider.signOut();
+      final notifier = ref.read(authNotifierProvider.notifier);
+      await notifier.signOut();
       _showMsg("ログアウトしました");
     } catch (e) {
       _showMsg("ログアウトエラー: ${e.toString()}");
@@ -123,25 +117,25 @@ class _MyPageScreenState extends State<MyPageScreen> {
     setState(() {});
   }
 
-  Future<void> _saveAddress() async {
+  Future<void> _saveAddress(WidgetRef ref) async {
     if (_addressController == null) return;
 
     final value = _addressController!.text.trim();
     if (value.isEmpty) return;
     try {
-      final provider = Provider.of(context, listen: false);
-      if (!provider.isLoggedIn) {
+      final state = ref.read(authNotifierProvider);
+      if (!state.isLoggedIn) {
         _showMsg("ログインしてください");
         return;
       }
 
+      final notifier = ref.read(authNotifierProvider.notifier);
       if (editingAddressId == null) {
-        await provider.addAddress(value);
+        await notifier.addAddress(value);
       } else {
-        await provider.updateAddress(editingAddressId!, value);
+        await notifier.updateAddress(editingAddressId!, value);
       }
     } catch (e) {
-      debugPrint('[MyPage] _saveAddress FAILED: $e');
       _showMsg('住所の保存中にエラーが発生しました: $e');
       return;
     }
@@ -150,14 +144,15 @@ class _MyPageScreenState extends State<MyPageScreen> {
     _showMsg("保存されました");
   }
 
-  Future<void> _removeAddress(String id) async {
+  Future<void> _removeAddress(String id, WidgetRef ref) async {
     try {
-      final provider = Provider.of(context, listen: false);
-      if (!provider.isLoggedIn) {
+      final state = ref.read(authNotifierProvider);
+      if (!state.isLoggedIn) {
         _showMsg("ログインしてください");
         return;
       }
-      await provider.removeAddress(id);
+      final notifier = ref.read(authNotifierProvider.notifier);
+      await notifier.removeAddress(id);
       _showMsg("削除しました");
     } catch (e) {
       _showMsg('住所の削除中にエラーが発生しました');
@@ -184,9 +179,6 @@ class _MyPageScreenState extends State<MyPageScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final auth = Provider.of<AuthProvider>(context);
-    final isLogged = auth.isLoggedIn;
-
     return Scaffold(
       backgroundColor: scaffoldBg,
       appBar: AppBar(
@@ -196,7 +188,13 @@ class _MyPageScreenState extends State<MyPageScreen> {
         centerTitle: true,
         iconTheme: const IconThemeData(color: textColor),
       ),
-      body: isLogged ? _buildLoggedInUI() : _buildLoggedOutUI(),
+      body: Consumer(
+        builder: (context, ref, _) {
+          final auth = ref.watch(authNotifierProvider);
+          final isLogged = auth.isLoggedIn;
+          return isLogged ? _buildLoggedInUI(ref) : _buildLoggedOutUI(ref);
+        },
+      ),
       bottomNavigationBar: CustomBottomNavBar(
         currentIndex: _selectedBottomIndex,
         onTap: _onBottomNavTap,
@@ -204,7 +202,7 @@ class _MyPageScreenState extends State<MyPageScreen> {
     );
   }
 
-  Widget _buildLoggedOutUI() {
+  Widget _buildLoggedOutUI(WidgetRef ref) {
     return Padding(
       padding: const EdgeInsets.all(16),
       child: Card(
@@ -219,8 +217,6 @@ class _MyPageScreenState extends State<MyPageScreen> {
                 style: TextStyle(fontWeight: FontWeight.bold, color: green),
               ),
               const SizedBox(height: 8),
-
-              // AutofillGroup + proper autofillHints for browser password managers
               AutofillGroup(
                 child: Column(
                   children: [
@@ -245,10 +241,7 @@ class _MyPageScreenState extends State<MyPageScreen> {
                   ],
                 ),
               ),
-
               const SizedBox(height: 12),
-
-              // Remember me (controls web persistence)
               CheckboxListTile(
                 contentPadding: EdgeInsets.zero,
                 title: const Text("ログイン状態を保持する"),
@@ -261,14 +254,12 @@ class _MyPageScreenState extends State<MyPageScreen> {
                 },
                 controlAffinity: ListTileControlAffinity.leading,
               ),
-
               const SizedBox(height: 8),
-
               Row(
                 children: [
                   Expanded(
                     child: ElevatedButton(
-                      onPressed: _isProcessing ? null : _signIn,
+                      onPressed: _isProcessing ? null : () => _signIn(ref),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: green,
                         foregroundColor: Colors.white,
@@ -285,7 +276,9 @@ class _MyPageScreenState extends State<MyPageScreen> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: OutlinedButton(
-                      onPressed: _isProcessing ? null : _createAccount,
+                      onPressed: _isProcessing
+                          ? null
+                          : () => _createAccount(ref),
                       style: OutlinedButton.styleFrom(
                         side: const BorderSide(color: green),
                         foregroundColor: green,
@@ -302,8 +295,8 @@ class _MyPageScreenState extends State<MyPageScreen> {
     );
   }
 
-  Widget _buildLoggedInUI() {
-    final auth = Provider.of<AuthProvider>(context);
+  Widget _buildLoggedInUI(WidgetRef ref) {
+    final auth = ref.watch(authNotifierProvider);
     return Column(
       children: [
         const SizedBox(height: 8),
@@ -336,7 +329,6 @@ class _MyPageScreenState extends State<MyPageScreen> {
           ],
         ),
         const SizedBox(height: 10),
-
         Expanded(
           child: ListView(
             padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -358,7 +350,7 @@ class _MyPageScreenState extends State<MyPageScreen> {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        auth.user?.email ?? "",
+                        auth.user?.email ?? "(メールアドレスが設定されていません)",
                         style: const TextStyle(color: textColor),
                       ),
                     ],
@@ -366,7 +358,6 @@ class _MyPageScreenState extends State<MyPageScreen> {
                 ),
               ),
               const SizedBox(height: 8),
-
               Card(
                 color: scaffoldBg,
                 child: Padding(
@@ -383,13 +374,11 @@ class _MyPageScreenState extends State<MyPageScreen> {
                         ),
                       ),
                       const SizedBox(height: 8),
-
                       if (auth.addresses.isEmpty && !showAddressForm)
                         const Text(
                           "住所は登録されていません",
                           style: TextStyle(color: textColor),
                         ),
-
                       ...auth.addresses.map((addr) {
                         final id = addr['id'] as String? ?? '';
                         final addressText = addr['address'] as String? ?? '';
@@ -397,7 +386,11 @@ class _MyPageScreenState extends State<MyPageScreen> {
                           value: id,
                           groupValue: auth.selectedAddressId,
                           onChanged: (val) {
-                            if (val != null) auth.selectAddress(val);
+                            if (val != null) {
+                              ref
+                                  .read(authNotifierProvider.notifier)
+                                  .selectAddress(val);
+                            }
                           },
                           title: Text(
                             addressText,
@@ -416,13 +409,12 @@ class _MyPageScreenState extends State<MyPageScreen> {
                                   Icons.delete,
                                   color: Colors.red,
                                 ),
-                                onPressed: () => _removeAddress(id),
+                                onPressed: () => _removeAddress(id, ref),
                               ),
                             ],
                           ),
                         );
                       }),
-
                       TextButton(
                         onPressed: () {
                           if (showAddressForm) {
@@ -439,7 +431,6 @@ class _MyPageScreenState extends State<MyPageScreen> {
                           ),
                         ),
                       ),
-
                       if (showAddressForm)
                         Column(
                           children: [
@@ -452,7 +443,7 @@ class _MyPageScreenState extends State<MyPageScreen> {
                             SizedBox(
                               width: double.infinity,
                               child: ElevatedButton(
-                                onPressed: _saveAddress,
+                                onPressed: () => _saveAddress(ref),
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: green,
                                   foregroundColor: Colors.white,
@@ -468,15 +459,13 @@ class _MyPageScreenState extends State<MyPageScreen> {
                   ),
                 ),
               ),
-
               const SizedBox(height: 16),
-
               Align(
                 alignment: Alignment.center,
                 child: SizedBox(
                   width: 200,
                   child: ElevatedButton(
-                    onPressed: _logout,
+                    onPressed: () => _logout(ref),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.red,
                       foregroundColor: Colors.white,
@@ -486,7 +475,6 @@ class _MyPageScreenState extends State<MyPageScreen> {
                   ),
                 ),
               ),
-
               const SizedBox(height: 40),
             ],
           ),

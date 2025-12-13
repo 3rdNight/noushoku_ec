@@ -42,22 +42,22 @@ const express_1 = __importDefault(require("express"));
 const stripe_1 = __importDefault(require("stripe"));
 const admin = __importStar(require("firebase-admin"));
 const cors_1 = __importDefault(require("cors"));
-// Inicializa o Firebase Admin
+// Initialize Firebase Admin
 admin.initializeApp();
 const app = (0, express_1.default)();
-// 🔹 Configura CORS corretamente (aceita tanto localhost quanto o domínio do site)
+// 🔹 Configure CORS correctly (accepts both localhost and site domain)
 app.use((0, cors_1.default)({
     origin: true,
     methods: ["GET", "POST", "OPTIONS"],
     allowedHeaders: ["Content-Type"],
 }));
-// 🔹 Lida com preflight OPTIONS requests
+// 🔹 Handle preflight OPTIONS requests
 app.options("/create-checkout-session", (0, cors_1.default)());
 // Body parser
 app.use(express_1.default.json());
-// Inicializa Stripe
+// Initialize Stripe
 const stripe = new stripe_1.default("sk_test_51SPcfXCTxikVLYqMseAD91TnbMGBpw92ixiEfIxNyf3OmTkX8zflDGSeHfEqMaGGD1ly1LsUEMjZC0K8jH2iUxc800pwJ4y7ec", { apiVersion: "2025-10-29.clover" });
-// 🔹 Endpoint principal
+// 🔹 Main endpoint
 app.post("/create-checkout-session", async (req, res) => {
     try {
         const { amount, currency, email } = req.body;
@@ -88,6 +88,6 @@ app.post("/create-checkout-session", async (req, res) => {
         return res.status(500).json({ error: err.message || "Internal Error" });
     }
 });
-// 🔹 Exporta função HTTP (1ª geração)
+// 🔹 Export HTTP function (1st generation)
 exports.createCheckoutSession = functions.https.onRequest(app);
 //# sourceMappingURL=index.js.map

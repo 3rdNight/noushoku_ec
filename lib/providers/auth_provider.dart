@@ -32,9 +32,6 @@ class AuthProvider extends ChangeNotifier {
 
   void _init() {
     _authSub = _auth.authStateChanges().listen((u) async {
-      debugPrint(
-        '[AuthProvider] authStateChanges -> user=${u?.uid} email=${u?.email}',
-      );
       _firebaseUser = u;
       if (u != null) {
         await _loadUserDoc(u.uid);
@@ -122,8 +119,7 @@ class AuthProvider extends ChangeNotifier {
           remember ? Persistence.LOCAL : Persistence.SESSION,
         );
       } catch (e) {
-        // log but don't block authentication flow
-        debugPrint('Auth persistence set failed: $e');
+        // Ignore persistence errors on Web
       }
     }
     final cred = await _auth.signInWithEmailAndPassword(
@@ -155,15 +151,11 @@ class AuthProvider extends ChangeNotifier {
     if (uid == null) throw StateError('Not logged in');
 
     try {
-      debugPrint('[AuthProvider] addAddress -> uid=$uid address=$address');
       await _db.collection('users').doc(uid).collection('addresses').add({
         'address': address,
         'createdAt': FieldValue.serverTimestamp(),
       });
-      debugPrint('[AuthProvider] addAddress succeeded');
-    } catch (e, st) {
-      debugPrint('[AuthProvider] addAddress FAILED: $e');
-      debugPrint(st.toString());
+    } catch (e) {
       rethrow;
     }
   }
@@ -172,19 +164,13 @@ class AuthProvider extends ChangeNotifier {
     final uid = _firebaseUser?.uid;
     if (uid == null) throw StateError('Not logged in');
     try {
-      debugPrint(
-        '[AuthProvider] updateAddress -> uid=$uid id=$id address=$address',
-      );
       await _db
           .collection('users')
           .doc(uid)
           .collection('addresses')
           .doc(id)
           .update({'address': address});
-      debugPrint('[AuthProvider] updateAddress succeeded');
     } catch (e, st) {
-      debugPrint('[AuthProvider] updateAddress FAILED: $e');
-      debugPrint(st.toString());
       rethrow;
     }
   }
@@ -193,7 +179,6 @@ class AuthProvider extends ChangeNotifier {
     final uid = _firebaseUser?.uid;
     if (uid == null) throw StateError('Not logged in');
     try {
-      debugPrint('[AuthProvider] removeAddress -> uid=$uid id=$id');
       await _db
           .collection('users')
           .doc(uid)
@@ -203,10 +188,7 @@ class AuthProvider extends ChangeNotifier {
       if (_selectedAddressId == id) {
         _selectedAddressId = null;
       }
-      debugPrint('[AuthProvider] removeAddress succeeded');
-    } catch (e, st) {
-      debugPrint('[AuthProvider] removeAddress FAILED: $e');
-      debugPrint(st.toString());
+    } catch (e) {
       rethrow;
     }
   }

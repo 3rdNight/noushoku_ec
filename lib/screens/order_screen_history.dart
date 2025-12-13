@@ -1,10 +1,9 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:flutter/foundation.dart';
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:provider/provider.dart';
-import '../providers/auth_provider.dart';
+import '../providers/auth_notifier.dart';
 import '../data/order_history.dart';
 import '../widgets/custom_bottom_nav_bar.dart';
 import 'home_screen.dart';
@@ -14,14 +13,14 @@ import 'package:http/http.dart' as http;
 import 'package:flutter_stripe/flutter_stripe.dart' as stripe;
 import 'dart:html' as html;
 
-class OrderHistoryScreen extends StatefulWidget {
+class OrderHistoryScreen extends ConsumerStatefulWidget {
   const OrderHistoryScreen({super.key});
 
   @override
-  State<OrderHistoryScreen> createState() => _OrderHistoryScreenState();
+  ConsumerState<OrderHistoryScreen> createState() => _OrderHistoryScreenState();
 }
 
-class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
+class _OrderHistoryScreenState extends ConsumerState<OrderHistoryScreen> {
   int _selectedBottomIndex = 2;
   static int _orderCounter = 0;
 
@@ -31,10 +30,6 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
   final TextEditingController _customMessageController =
       TextEditingController();
   final TextEditingController _recipientController = TextEditingController();
-
-  // auth state handled by AuthProvider
-  AuthProvider? _authProvider;
-  VoidCallback? _authListener;
 
   // gift / message
   bool isGift = false;
@@ -49,63 +44,16 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
   @override
   void initState() {
     super.initState();
-    // initial controllers empty for anonymous flow
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    final auth = Provider.of<AuthProvider>(context);
-    if (_authProvider != auth) {
-      // remove previous listener
-      if (_authProvider != null && _authListener != null) {
-        _authProvider!.removeListener(_authListener!);
-      }
-      _authProvider = auth;
-      // create and attach new listener
-      _authListener = () {
-        // when auth changes, update controllers safely and log
-        final user = _authProvider!.user;
-        final selAddr = _authProvider!.selectedAddress;
-        debugPrint(
-          '[OrderHistory] Auth changed. user=${user?.email}, selectedAddress=${selAddr}',
-        );
-        // update controllers only if values differ to avoid cursor jump
-        final newEmail = user?.email ?? '';
-        if (_emailController.text != newEmail) {
-          _emailController.text = newEmail;
-          debugPrint('[OrderHistory] emailController updated -> $newEmail');
-        }
-
-        final newAddress = selAddr != null
-            ? (selAddr['address'] as String? ?? '')
-            : '';
-        if (_addressController.text != newAddress) {
-          _addressController.text = newAddress;
-          debugPrint('[OrderHistory] addressController updated -> $newAddress');
-        }
-        // trigger rebuild to update UI derived from auth
-        if (mounted) setState(() {});
-      };
-      _authProvider!.addListener(_authListener!);
-      // run once to initialize fields
-      _authListener!();
-    }
   }
 
   @override
   void dispose() {
-    if (_authProvider != null && _authListener != null) {
-      _authProvider!.removeListener(_authListener!);
-    }
     _emailController.dispose();
     _addressController.dispose();
     _customMessageController.dispose();
     _recipientController.dispose();
     super.dispose();
   }
-
-  // older SharedPreferences-based login removed; AuthProvider used
 
   double getTotal() {
     return orderHistory.fold(
@@ -118,7 +66,7 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
 
   bool canCheckout() {
     if (orderHistory.isEmpty) return false;
-    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final auth = ref.read(authNotifierProvider);
     if (auth.isLoggedIn) return orderHistory.isNotEmpty;
 
     // Para usuários não logados, basta email e endereço preenchidos
@@ -131,7 +79,7 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
   Future<void> _checkoutAll() async {
     if (orderHistory.isEmpty) return;
 
-    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final auth = ref.read(authNotifierProvider);
     final String effectiveEmail = auth.isLoggedIn
         ? (auth.user?.email ?? _emailController.text.trim())
         : _emailController.text.trim();
@@ -140,10 +88,6 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
         ? (auth.selectedAddress?['address'] as String? ??
               _addressController.text.trim())
         : _addressController.text.trim();
-
-    debugPrint(
-      '[OrderHistory] checkoutAll -> effectiveEmail=$effectiveEmail, effectiveAddress=$effectiveAddress',
-    );
 
     final confirmed = await showDialog<bool>(
       context: context,
@@ -155,7 +99,7 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
         if (isGift) {
           switch (selectedMessage) {
             case 1:
-              giftMsg = _customMessageController.text; // 自由に入力
+              giftMsg = _customMessageController.text;
               break;
             case 2:
               giftMsg =
@@ -408,9 +352,10 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
       'dateTime': DateTime.now().toIso8601String(),
     };
 
+    final authNotifier = ref.read(authNotifierProvider.notifier);
     if (auth.isLoggedIn) {
       // save under user's purchases collection
-      await auth.savePurchase(newOrder);
+      await authNotifier.savePurchase(newOrder);
     } else {
       final prefs = await SharedPreferences.getInstance();
       final List<String> purchaseHistoryList =
@@ -461,8 +406,36 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final auth = Provider.of<AuthProvider>(context);
+    final auth = ref.watch(authNotifierProvider);
     final total = getTotal();
+
+    // Update controllers when auth changes - two states: logged in vs not logged in
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (auth.isLoggedIn) {
+        // LOGGED IN STATE: Auto-fill from auth state
+        final newEmail = auth.user?.email ?? '';
+        if (_emailController.text != newEmail) {
+          _emailController.text = newEmail;
+        }
+
+        final newAddress =
+            auth.selectedAddress != null && auth.selectedAddress!.isNotEmpty
+            ? (auth.selectedAddress!['address'] as String? ?? '')
+            : '';
+        if (_addressController.text != newAddress) {
+          _addressController.text = newAddress;
+        }
+      } else {
+        // NOT LOGGED IN STATE: Clear fields for manual entry
+        if (_emailController.text.isNotEmpty) {
+          _emailController.clear();
+        }
+        if (_addressController.text.isNotEmpty) {
+          _addressController.clear();
+        }
+      }
+    });
+
     return Scaffold(
       backgroundColor: scaffoldBg,
       appBar: AppBar(
@@ -476,14 +449,11 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // -----------------------------
-            // 1️⃣ BOTÃO LOGIN TOPO
-            // -----------------------------
+            // Login button at top if not logged in
             if (!auth.isLoggedIn) ...[
               Center(
                 child: ElevatedButton(
                   onPressed: () async {
-                    // Chama MyPageScreen e aguarda retorno
                     await Navigator.push<void>(
                       context,
                       MaterialPageRoute(builder: (_) => const MyPageScreen()),
@@ -514,9 +484,7 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
               const SizedBox(height: 12),
             ],
 
-            // -----------------------------
-            // 2️⃣ Order list
-            // -----------------------------
+            // Order list
             Card(
               color: scaffoldBg,
               shape: RoundedRectangleBorder(
@@ -606,9 +574,7 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
 
             const SizedBox(height: 8),
 
-            // -----------------------------
-            // 3️⃣ E-MAIL
-            // -----------------------------
+            // E-mail - Two states: logged in (read-only display) vs not logged in (input field)
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -623,21 +589,27 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
                     padding: const EdgeInsets.all(8),
                     child: TextField(
                       controller: _emailController,
+                      enabled: !auth.isLoggedIn, // Disabled when logged in
                       maxLines: 1,
-                      decoration: const InputDecoration(
-                        hintText: 'メールアドレスを入力',
-                        hintStyle: TextStyle(color: green),
-                        labelStyle: TextStyle(color: green),
-                        floatingLabelStyle: TextStyle(color: green),
-                        enabledBorder: OutlineInputBorder(
+                      decoration: InputDecoration(
+                        hintText: auth.isLoggedIn ? 'ログイン済み' : 'メールアドレスを入力',
+                        hintStyle: const TextStyle(color: green),
+                        labelStyle: const TextStyle(color: green),
+                        floatingLabelStyle: const TextStyle(color: green),
+                        enabledBorder: const OutlineInputBorder(
                           borderSide: BorderSide(color: green),
                         ),
-                        focusedBorder: OutlineInputBorder(
+                        disabledBorder: OutlineInputBorder(
+                          borderSide: BorderSide(color: Colors.grey.shade300),
+                        ),
+                        focusedBorder: const OutlineInputBorder(
                           borderSide: BorderSide(color: green, width: 2),
                         ),
                       ),
                       cursorColor: green,
-                      style: const TextStyle(color: green),
+                      style: TextStyle(
+                        color: auth.isLoggedIn ? Colors.grey : green,
+                      ),
                     ),
                   ),
                 ),
@@ -646,9 +618,7 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
 
             const SizedBox(height: 8),
 
-            // -----------------------------
-            // 4️⃣ ENDEREÇO DE ENTREGA
-            // -----------------------------
+            // Address - Two states: logged in (dropdown if available) vs not logged in (input field)
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -663,21 +633,27 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
                     padding: const EdgeInsets.all(8),
                     child: TextField(
                       controller: _addressController,
+                      enabled: !auth.isLoggedIn, // Disabled when logged in
                       maxLines: 2,
-                      decoration: const InputDecoration(
-                        hintText: '住所を入力',
-                        hintStyle: TextStyle(color: green),
-                        labelStyle: TextStyle(color: green),
-                        floatingLabelStyle: TextStyle(color: green),
-                        enabledBorder: OutlineInputBorder(
+                      decoration: InputDecoration(
+                        hintText: auth.isLoggedIn ? '保存済みの住所から選択済み' : '住所を入力',
+                        hintStyle: const TextStyle(color: green),
+                        labelStyle: const TextStyle(color: green),
+                        floatingLabelStyle: const TextStyle(color: green),
+                        enabledBorder: const OutlineInputBorder(
                           borderSide: BorderSide(color: green),
                         ),
-                        focusedBorder: OutlineInputBorder(
+                        disabledBorder: OutlineInputBorder(
+                          borderSide: BorderSide(color: Colors.grey.shade300),
+                        ),
+                        focusedBorder: const OutlineInputBorder(
                           borderSide: BorderSide(color: green, width: 2),
                         ),
                       ),
                       cursorColor: green,
-                      style: const TextStyle(color: green),
+                      style: TextStyle(
+                        color: auth.isLoggedIn ? Colors.grey : green,
+                      ),
                     ),
                   ),
                 ),
@@ -686,8 +662,7 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
 
             const SizedBox(height: 12),
 
-            // 5️⃣ Gift
-            // -----------------------------
+            // Gift checkbox
             CheckboxListTile(
               title: const Text('これはギフトです', style: TextStyle(color: green)),
               activeColor: green,
@@ -730,8 +705,6 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
                         style: TextStyle(color: green),
                       ),
                       const SizedBox(height: 12),
-
-                      // Mensagens (自由に入力 primeiro)
                       ...List.generate(5, (index) {
                         final labels = [
                           '宛先の方に自由にメッセージをご記入ください。',
@@ -755,8 +728,6 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
                               onChanged: (v) =>
                                   setState(() => selectedMessage = v),
                             ),
-
-                            // 自由に入力
                             if (selectedMessage == index + 1 && index == 0)
                               Padding(
                                 padding: const EdgeInsets.only(left: 32),
@@ -794,8 +765,6 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
                                   ),
                                 ),
                               ),
-
-                            // 季節の挨拶を入れる
                             if (selectedMessage == index + 1 && index == 4)
                               Padding(
                                 padding: const EdgeInsets.only(

@@ -4,11 +4,11 @@ import Stripe from "stripe";
 import * as admin from "firebase-admin";
 import cors from "cors";
 
-// Inicializa o Firebase Admin
+// Initialize Firebase Admin
 admin.initializeApp();
 const app = express();
 
-// 🔹 Configura CORS corretamente (aceita tanto localhost quanto o domínio do site)
+// 🔹 Configure CORS correctly (accepts both localhost and site domain)
 app.use(
   cors({
     origin: true,
@@ -17,19 +17,19 @@ app.use(
   })
 );
 
-// 🔹 Lida com preflight OPTIONS requests
+// 🔹 Handle preflight OPTIONS requests
 app.options("/create-checkout-session", cors());
 
 // Body parser
 app.use(express.json());
 
-// Inicializa Stripe
+// Initialize Stripe
 const stripe = new Stripe(
   "sk_test_51SPcfXCTxikVLYqMseAD91TnbMGBpw92ixiEfIxNyf3OmTkX8zflDGSeHfEqMaGGD1ly1LsUEMjZC0K8jH2iUxc800pwJ4y7ec",
   { apiVersion: "2025-10-29.clover" }
 );
 
-// 🔹 Endpoint principal
+// 🔹 Main endpoint
 app.post("/create-checkout-session", async (req, res) => {
   try {
     const { amount, currency, email } = req.body;
@@ -63,5 +63,5 @@ app.post("/create-checkout-session", async (req, res) => {
   }
 });
 
-// 🔹 Exporta função HTTP (1ª geração)
+// 🔹 Export HTTP function (1st generation)
 export const createCheckoutSession = functions.https.onRequest(app);
