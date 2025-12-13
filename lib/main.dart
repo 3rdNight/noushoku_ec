@@ -40,12 +40,12 @@ void main() async {
                 throw Exception('Firestore write timeout after 5s');
               },
             );
-      } on Exception catch (e) {
+      } on Exception catch (_) {
         // Silent catch for connectivity test
       }
     }
-  } catch (e) {
-    rethrow; // <-- to the app, to be able to see that an error occurred
+  } catch (_) {
+    rethrow; // preserve original behavior: propagate unexpected initialization errors
   }
 
   // Stripe apenas no mobile

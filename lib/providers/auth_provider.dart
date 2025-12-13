@@ -118,7 +118,7 @@ class AuthProvider extends ChangeNotifier {
         await _auth.setPersistence(
           remember ? Persistence.LOCAL : Persistence.SESSION,
         );
-      } catch (e) {
+      } catch (_) {
         // Ignore persistence errors on Web
       }
     }
@@ -155,7 +155,7 @@ class AuthProvider extends ChangeNotifier {
         'address': address,
         'createdAt': FieldValue.serverTimestamp(),
       });
-    } catch (e) {
+    } catch (_) {
       rethrow;
     }
   }
@@ -170,7 +170,7 @@ class AuthProvider extends ChangeNotifier {
           .collection('addresses')
           .doc(id)
           .update({'address': address});
-    } catch (e, st) {
+    } catch (_) {
       rethrow;
     }
   }
@@ -188,7 +188,7 @@ class AuthProvider extends ChangeNotifier {
       if (_selectedAddressId == id) {
         _selectedAddressId = null;
       }
-    } catch (e) {
+    } catch (_) {
       rethrow;
     }
   }
